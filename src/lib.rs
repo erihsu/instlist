@@ -16,7 +16,7 @@ pub struct InstListAnalyzer {
     sv_buffer: String,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 struct InstanceNode {
     identifier: String,                                // instance identifier
     child: HashMap<String, Rc<RefCell<InstanceNode>>>, // instance identifier to instance mapping
@@ -66,6 +66,27 @@ impl InstanceNode {
             top_down_path.push_str(&format!("{}/", p));
         }
         return top_down_path;
+    }
+    fn deep_copy(&self) -> Self {
+        let mut new_map: HashMap<String, Rc<RefCell<InstanceNode>>> = HashMap::new();
+        if !self.child.is_empty() {
+            for (ck, cv) in &self.child {
+                let child_copy = cv.borrow().deep_copy();
+                new_map.insert(ck.to_string(), Rc::new(RefCell::new(child_copy)));
+            }
+        } else {
+            return self.clone();
+        }
+        return Self {
+            identifier: self.identifier.clone(),
+            parent: self.parent.clone(),
+            child: new_map,
+        };
+    }
+    fn change_child_parent(&mut self, parent: Rc<RefCell<InstanceNode>>) {
+        for (_, cv) in &self.child {
+            cv.borrow_mut().parent = Some(parent.clone());
+        }
     }
 }
 
@@ -126,29 +147,51 @@ impl InstListAnalyzer {
         );
         assert!(result.is_ok());
         if let Ok((syntax_tree, _)) = result {
-            // let mut recognized_modules = HashMap::new();
-            let mut _candidates: Vec<Rc<RefCell<InstanceNode>>> = vec![];
-            let _candidate_number = 0;
-            let mut _is_root = false;
-
             let mut current_module = String::new();
             let mut buffered_nodes: HashMap<String, Rc<RefCell<InstanceNode>>> = HashMap::new();
 
             let mut current_node = Rc::new(RefCell::new(InstanceNode::default()));
-            let mut child_node = Rc::new(RefCell::new(InstanceNode::default()));
             for node in &syntax_tree {
                 match node {
-                    RefNode::InstanceIdentifier(idnty) => {
+                    RefNode::ModuleInstantiation(idnty) => {
                         let id = unwrap_node!(idnty, InstanceIdentifier).unwrap();
                         let id = get_identifier(id).unwrap();
                         let inst_name = syntax_tree.get_str(&id).unwrap();
+                        let new_instnode = InstanceNode::default();
+                        let child_node = Rc::new(RefCell::new(new_instnode));
                         child_node.borrow_mut().identifier = inst_name.to_string();
                         child_node.borrow_mut().parent = Some(current_node.clone());
-                        current_node
-                            .borrow_mut()
-                            .child
-                            .insert(inst_name.to_string(), child_node);
-                        child_node = Rc::new(RefCell::new(InstanceNode::default()));
+
+                        let id = unwrap_node!(idnty, ModuleIdentifier).unwrap();
+                        let id = get_identifier(id).unwrap();
+                        let module_id = syntax_tree.get_str(&id).unwrap();
+                        if let Some(v) = buffered_nodes.get(module_id) {
+                            let v_has_parent = if let Some(_) = v.borrow().parent {
+                                true
+                            } else {
+                                false
+                            };
+                            if v_has_parent == true {
+                                let copy_of_v = Rc::new(RefCell::new(v.borrow().deep_copy()));
+                                copy_of_v.borrow_mut().identifier = inst_name.to_string();
+                                copy_of_v.borrow_mut().parent = Some(current_node.clone());
+                                copy_of_v.borrow_mut().change_child_parent(child_node);
+                                current_node
+                                    .borrow_mut()
+                                    .child
+                                    .insert(inst_name.to_string(), copy_of_v.clone());
+                            } else {
+                                v.borrow_mut().identifier = inst_name.to_string();
+                                v.borrow_mut().parent = Some(current_node.clone());
+                                child_node.borrow_mut().child = v.borrow().child.clone();
+                                current_node
+                                    .borrow_mut()
+                                    .child
+                                    .insert(inst_name.to_string(), child_node.clone());
+                            }
+                        } else {
+                            panic!("unrecognized module {}", module_id);
+                        }
                     }
                     RefNode::ModuleDeclaration(module) => {
                         let id = unwrap_node!(module, ModuleIdentifier).unwrap();
@@ -162,18 +205,6 @@ impl InstListAnalyzer {
                         }
                         current_module = module_id.to_string();
                     }
-                    RefNode::ModuleInstantiation(module) => {
-                        let id = unwrap_node!(module, ModuleIdentifier).unwrap();
-                        let id = get_identifier(id).unwrap();
-                        let module_id = syntax_tree.get_str(&id).unwrap();
-
-                        if let Some(v) = buffered_nodes.get(module_id) {
-                            println!("current module {}", module_id);
-                            child_node = v.clone();
-                        } else {
-                            panic!("unrecognized module {}", module_id);
-                        }
-                    }
                     RefNode::Keyword(kid) => {
                         let id = unwrap_node!(kid, Keyword).unwrap();
                         let id = get_identifier(id).unwrap();
@@ -184,7 +215,6 @@ impl InstListAnalyzer {
                                     self.instance_tree = current_node.clone();
                                     break;
                                 } else {
-                                    println!("current module end {}", current_module);
                                     buffered_nodes
                                         .entry(current_module.clone())
                                         .or_insert(current_node.clone());
@@ -200,8 +230,5 @@ impl InstListAnalyzer {
             println!("top module parse failed");
             return false;
         }
-        // } else {
-        //     return false;
-        // }
     }
 }

@@ -3,4 +3,5 @@
 /home/eric/Documents/project/cli/instlist/testcase/xor.v
 /home/eric/Documents/project/cli/instlist/testcase/not.v
 /home/eric/Documents/project/cli/instlist/testcase/low_logic.v
+/home/eric/Documents/project/cli/instlist/testcase/middle_logic.v
 /home/eric/Documents/project/cli/instlist/testcase/complex_logic.v
