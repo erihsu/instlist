@@ -1,10 +1,19 @@
 [package]
 name = "instlist"
-version = "0.1.0"
+version = "1.0.0"
 edition = "2021"
+authors = ["erihsu@139.com"]
+description = "list all instance path in the RTL Design project"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 sv-parser = "0.12"
 verilog-filelist-parser = "0.1.2"
+clap = {version = "3.1", features = ["derive"]}
+
+[profile.release]
+debug = 1
+
+[toolchain]
+channel = "nightly"

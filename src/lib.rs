@@ -26,25 +26,19 @@ struct InstanceNode {
 fn get_identifier(node: RefNode) -> Option<Locate> {
     // unwrap_node! can take multiple types
     match unwrap_node!(node, SimpleIdentifier, EscapedIdentifier, Keyword) {
-        Some(RefNode::SimpleIdentifier(x)) => {
-            return Some(x.nodes.0);
-        }
-        Some(RefNode::EscapedIdentifier(x)) => {
-            return Some(x.nodes.0);
-        }
-        Some(RefNode::Keyword(x)) => {
-            return Some(x.nodes.0);
-        }
+        Some(RefNode::SimpleIdentifier(x)) => Some(x.nodes.0),
+        Some(RefNode::EscapedIdentifier(x)) => Some(x.nodes.0),
+        Some(RefNode::Keyword(x)) => Some(x.nodes.0),
         _ => None,
     }
 }
 
 impl InstanceNode {
     fn traversal(&self, instlist: &mut Vec<InstPath>) {
-        if self.child.len() == 0usize {
+        if self.child.is_empty() {
             instlist.push(self.reverse_traversal())
         } else {
-            for (_k, v) in &self.child {
+            for v in self.child.values() {
                 v.borrow().traversal(instlist);
             }
         }
@@ -54,18 +48,14 @@ impl InstanceNode {
         let mut top_down_path = InstPath::new();
         let mut parent = self.parent.clone();
         let mut path = vec![self.identifier.clone()];
-        loop {
-            if let Some(p) = parent {
-                path.push(p.borrow().identifier.clone());
-                parent = p.borrow().parent.clone();
-            } else {
-                break;
-            }
+        while let Some(p) = parent {
+            path.push(p.borrow().identifier.clone());
+            parent = p.borrow().parent.clone();
         }
         for p in path.iter().rev() {
             top_down_path.push_str(&format!("{}/", p));
         }
-        return top_down_path;
+        top_down_path
     }
     fn deep_copy(&self) -> Self {
         let mut new_map: HashMap<String, Rc<RefCell<InstanceNode>>> = HashMap::new();
@@ -77,14 +67,14 @@ impl InstanceNode {
         } else {
             return self.clone();
         }
-        return Self {
+        Self {
             identifier: self.identifier.clone(),
             parent: self.parent.clone(),
             child: new_map,
-        };
+        }
     }
     fn change_child_parent(&mut self, parent: Rc<RefCell<InstanceNode>>) {
-        for (_, cv) in &self.child {
+        for cv in self.child.values() {
             cv.borrow_mut().parent = Some(parent.clone());
         }
     }
@@ -116,6 +106,12 @@ impl InstListAnalyzer {
 
     pub fn generate_instlist(&mut self) {
         self.instance_tree.borrow().traversal(&mut self.instlist);
+    }
+
+    pub fn list_result(&self) {
+        for p in &self.instlist {
+            println!("{:?}", p)
+        }
     }
 
     pub fn analyze_filelist(&mut self) -> bool {
@@ -166,12 +162,8 @@ impl InstListAnalyzer {
                         let id = get_identifier(id).unwrap();
                         let module_id = syntax_tree.get_str(&id).unwrap();
                         if let Some(v) = buffered_nodes.get(module_id) {
-                            let v_has_parent = if let Some(_) = v.borrow().parent {
-                                true
-                            } else {
-                                false
-                            };
-                            if v_has_parent == true {
+                            let v_has_parent = v.borrow().parent.is_some();
+                            if v_has_parent {
                                 let copy_of_v = Rc::new(RefCell::new(v.borrow().deep_copy()));
                                 copy_of_v.borrow_mut().identifier = inst_name.to_string();
                                 copy_of_v.borrow_mut().parent = Some(current_node.clone());
@@ -209,15 +201,15 @@ impl InstListAnalyzer {
                         let id = unwrap_node!(kid, Keyword).unwrap();
                         let id = get_identifier(id).unwrap();
                         let kwd = syntax_tree.get_str(&id).unwrap();
-                        if kwd == "endmodule".to_string() {
+                        if kwd == "endmodule" {
                             if let Some(top) = &self.top {
                                 if *top == current_module {
-                                    self.instance_tree = current_node.clone();
+                                    self.instance_tree = current_node;
                                     break;
                                 } else {
                                     buffered_nodes
                                         .entry(current_module.clone())
-                                        .or_insert(current_node.clone());
+                                        .or_insert_with(|| current_node.clone());
                                 }
                             }
                         }
@@ -225,10 +217,10 @@ impl InstListAnalyzer {
                     _ => {}
                 }
             }
-            return true;
+            true
         } else {
             println!("top module parse failed");
-            return false;
+            false
         }
     }
 }
