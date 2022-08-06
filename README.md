@@ -1,7 +1,7 @@
 # instlist 
 list all instance path in the RTL Design project
 
-[![instlist Gif](https://asciinema.org/a/MSlNlOOCIf3qvyl4d1qJ2RBl1)](https://asciinema.org/a/MSlNlOOCIf3qvyl4d1qJ2RBl1)
+See the [![instlist demo](https://asciinema.org/a/MSlNlOOCIf3qvyl4d1qJ2RBl1)](https://asciinema.org/a/MSlNlOOCIf3qvyl4d1qJ2RBl1) at asciinema
 
 ## License
 
