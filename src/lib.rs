@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::io::Read;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
+use sv_filelist_parser::Filelist;
 use sv_parser::{parse_sv_str, unwrap_node, Define, DefineText, Locate, RefNode};
-use verilog_filelist_parser::Filelist;
 
 pub type InstPath = String;
 
@@ -95,7 +95,7 @@ impl InstListAnalyzer {
     }
 
     pub fn parse_from_filelist<P: AsRef<Path>>(&mut self, path: P) {
-        self.filelist = verilog_filelist_parser::parse_file(path)
+        self.filelist = sv_filelist_parser::parse_file(path)
             .expect("invalid verilog-2001 verilog filelist format");
         for fp in &self.filelist.files {
             let mut f = std::fs::File::open(fp).expect(&format!("no such file as {:?}", fp));

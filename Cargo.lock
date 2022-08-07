@@ -151,8 +151,8 @@ name = "instlist"
 version = "1.0.0"
 dependencies = [
  "clap",
+ "sv-filelist-parser",
  "sv-parser",
- "verilog-filelist-parser",
 ]
 
 [[package]]
@@ -425,6 +425,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "73473c0e59e6d5812c5dfe2a064a6444949f089e20eec9a2e5506596494e4623"
 
 [[package]]
+name = "sv-filelist-parser"
+version = "0.1.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2d0f9e489371e30a263649576eb16c695084e37f7e6be2cb636422069a5208f8"
+dependencies = [
+ "regex",
+]
+
+[[package]]
 name = "sv-parser"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -555,15 +564,6 @@ name = "unicode-ident"
 version = "1.0.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "15c61ba63f9235225a22310255a29b806b907c9b8c964bcbd0a2c70f3f2deea7"
-
-[[package]]
-name = "verilog-filelist-parser"
-version = "0.1.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "151577511c5302682410e643564b69670c302851b58dbe8b665019f24bf871fe"
-dependencies = [
- "regex",
-]
 
 [[package]]
 name = "version_check"
