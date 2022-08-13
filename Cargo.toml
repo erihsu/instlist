@@ -1,6 +1,6 @@
 [package]
 name = "instlist"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2021"
 authors = ["erihsu@139.com"]
 description = "list all instance path in the RTL Design project"
