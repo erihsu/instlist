@@ -10,7 +10,7 @@ pub type InstPath = String;
 
 pub struct InstListAnalyzer {
     filelist: Filelist,
-    top: Option<String>,
+    top: String,
     pub instlist: Vec<InstPath>,
     instance_tree: Rc<RefCell<InstanceNode>>,
     sv_buffer: String,
@@ -87,17 +87,86 @@ impl InstListAnalyzer {
                 identifier: top_name.to_string(),
                 ..InstanceNode::default()
             })),
-            top: Some(top_name.to_string()),
+            top: top_name.to_string(),
             filelist: Filelist::new(),
             instlist: vec![],
             sv_buffer: String::new(),
         }
     }
 
+    /// not only parse from filelist, but also pre-process verilog file order to ensure instantiated module should be parsed prior than itself
     pub fn parse_from_filelist<P: AsRef<Path>>(&mut self, path: P) {
+        let mut not_included_files = HashMap::<String, PathBuf>::new();
+        let mut ordered_filelist = vec![];
+        let mut top_module_path = PathBuf::new();
+
         self.filelist = sv_filelist_parser::parse_file(path)
             .expect("invalid verilog-2001 verilog filelist format");
+
+        // generate not included filelist
         for fp in &self.filelist.files {
+            let single_sv_buffer = std::fs::read_to_string(fp).unwrap();
+            let result = parse_sv_str(
+                &single_sv_buffer,
+                PathBuf::from(""),
+                &HashMap::new(),
+                &Vec::<PathBuf>::new(),
+                false,
+                false,
+            );
+            assert!(result.is_ok());
+            if let Ok((syntax_tree, _)) = result {
+                for node in &syntax_tree {
+                    match node {
+                        RefNode::ModuleDeclaration(module) => {
+                            let id = unwrap_node!(module, ModuleIdentifier).unwrap();
+                            let id = get_identifier(id).unwrap();
+                            let module_name = syntax_tree.get_str(&id).unwrap();
+                            not_included_files.insert(module_name.to_string(), fp.to_path_buf());
+                            if module_name == &self.top {
+                                top_module_path = fp.clone();
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // remove from not included filelist
+        for fp in &self.filelist.files {
+            let single_sv_buffer = std::fs::read_to_string(fp).unwrap();
+            let result = parse_sv_str(
+                &single_sv_buffer,
+                PathBuf::from(""),
+                &HashMap::new(),
+                &Vec::<PathBuf>::new(),
+                false,
+                false,
+            );
+            assert!(result.is_ok());
+            if let Ok((syntax_tree, _)) = result {
+                for node in &syntax_tree {
+                    match node {
+                        RefNode::ModuleInstantiation(idnty) => {
+                            let id = unwrap_node!(idnty, ModuleIdentifier).unwrap();
+                            let id = get_identifier(id).unwrap();
+                            let inst_name = syntax_tree.get_str(&id).unwrap();
+                            // file still not included, then include it
+                            if let Some(v) = not_included_files.remove(inst_name) {
+                                ordered_filelist.push(v);
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+
+        // finally push top file
+        ordered_filelist.push(top_module_path.clone());
+
+        for fp in &ordered_filelist {
             let mut f = std::fs::File::open(fp).expect(&format!("no such file as {:?}", fp));
             let _ = f.read_to_string(&mut self.sv_buffer);
             self.sv_buffer.push_str("\n\n");
@@ -190,11 +259,10 @@ impl InstListAnalyzer {
                         let id = get_identifier(id).unwrap();
                         let module_id = syntax_tree.get_str(&id).unwrap();
                         current_node = Rc::new(RefCell::new(InstanceNode::default()));
-                        if let Some(top) = &self.top {
-                            if top == module_id {
-                                current_node.borrow_mut().identifier = module_id.to_string();
-                            }
+                        if self.top == module_id {
+                            current_node.borrow_mut().identifier = module_id.to_string();
                         }
+
                         current_module = module_id.to_string();
                     }
                     RefNode::Keyword(kid) => {
@@ -202,15 +270,13 @@ impl InstListAnalyzer {
                         let id = get_identifier(id).unwrap();
                         let kwd = syntax_tree.get_str(&id).unwrap();
                         if kwd == "endmodule" {
-                            if let Some(top) = &self.top {
-                                if *top == current_module {
-                                    self.instance_tree = current_node;
-                                    break;
-                                } else {
-                                    buffered_nodes
-                                        .entry(current_module.clone())
-                                        .or_insert_with(|| current_node.clone());
-                                }
+                            if self.top == current_module {
+                                self.instance_tree = current_node;
+                                break;
+                            } else {
+                                buffered_nodes
+                                    .entry(current_module.clone())
+                                    .or_insert_with(|| current_node.clone());
                             }
                         }
                     }
